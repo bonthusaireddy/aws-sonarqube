@@ -1,0 +1,51 @@
+pipeline {
+  agent { dockerfile {
+    filename 'Dockerfile'
+    args '-u root'
+    } 
+  }
+  stages {
+    stage('Git clone') {
+      steps {
+        sh '''
+          cd /data/salm
+          git clone https://codestar-at-014936247795:ZGRYQxFtILpz2APxUTxCUmNYeTHF7wpEf1Z+N97Piq0=@git-codecommit.us-east-1.amazonaws.com/v1/repos/salm_core --branch $release_branch_salm_core
+          git clone https://codestar-at-014936247795:ZGRYQxFtILpz2APxUTxCUmNYeTHF7wpEf1Z+N97Piq0=@git-codecommit.us-east-1.amazonaws.com/v1/repos/salm_lib --branch $release_branch_salm_lib
+          curl --header "PRIVATE-TOKEN: eZf_ksptk5YbW6GUqpJU" "http://gitserver.digite.in/api/v4/projects/393/repository/files/swiftenterprise%2Fbuild%2Fcompile_src_wildfly18%2Exml/raw?ref=master" > build.xml
+        '''
+      }
+    }
+    stage('git repo pull') {
+      steps {
+        sh '''
+          chmod a+x gitcheckout.sh
+          ./gitcheckout.sh /data/salm/salm_core $release_branch_salm_core
+          ./gitcheckout.sh /data/salm/salm_lib $release_branch_salm_lib
+        '''
+      }
+    }
+    stage('add sonar properties file') {
+      steps {
+        sh '''
+            echo "sonar.projectKey=test\nsonar.projectName=test\nsonar.projectVersion=1.0\nsonar.sourceEncoding=UTF-8\nsonar.java.binaries=/data/salm/junit/test/com\nsonar.login=c5f34b806a05ccbf7a90549a9e2ea70eacc54bd4\nsonar.projectBaseDir=/data/salm/salm_core/sourcecode\nsonar.host.url=http://15.206.212.184:9000/" >> /data/salm/salm_core/sourcecode/sonar-project.properties
+        '''
+      }
+    }
+    stage('Compile') {
+      steps {
+        sh '''
+            cd /data/salm
+            ant -DWORKSPACE=/data/salm
+        '''
+      }
+    }
+    stage('SonarScanner') {
+      steps {
+        sh '''
+            cd /data/salm/salm_core/sourcecode
+            /opt/sonar-scanner/bin/sonar-scanner
+        '''
+      }
+    }
+  }
+}
